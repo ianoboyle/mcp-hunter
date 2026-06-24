@@ -11,3 +11,6 @@ wheels/
 
 # Any environments
 .env
+
+# Data dir
+corpus/data/*

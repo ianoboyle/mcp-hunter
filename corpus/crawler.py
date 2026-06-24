@@ -27,4 +27,20 @@ def get_model_context_protocol_registry() -> None:
             "remotes": server.get("remotes"),
             "repository": server.get("repository"),
         }
-        append_object_to_file("./registry_modelcontextprotocol_io/servers.jsonl", info)
+        append_object_to_file("./data/servers/servers.jsonl", info)
+
+
+def dedupe_repos() -> None:
+    big_set = set()
+    with open("./servers/servers.jsonl") as f:
+        for line in f.readlines():
+            obj = json.loads(line)
+            url = obj.get("repository", {"url": ""}).get("url")
+            if url in big_set:
+                continue
+            big_set.add(url)
+            append_object_to_file("./data/repos/repos.jsonl", obj)
+
+
+# get_model_context_protocol_registry()
+dedupe_repos()
