@@ -1,0 +1,5 @@
+0. Dedupe jsonl data, want unique repos(?)
+1. Look up /servers on github, augment with data
+    - Capture -> Last Commit, Stars, EcoSystem
+2. Clone repos (?)
+3. Setup Scanner (?)
