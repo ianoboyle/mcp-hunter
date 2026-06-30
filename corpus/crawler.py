@@ -62,6 +62,7 @@ def get_github_repo_data(repo_url: str) -> Dict:
         repo = GithubAPIClient.get_repo(owner_repo)
         return {
             "repo": owner_repo,
+            "repo_url": repo_url,
             "stars": repo.stargazers_count,
             "last_push": repo.pushed_at.isoformat(),
             "language": repo.language,
