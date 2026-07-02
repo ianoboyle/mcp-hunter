@@ -5,8 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "peewee>=4.1.1",
     "pre-commit>=4.6.0",
     "pygithub>=2.9.1",
+    "pysqlite3>=0.6.0",
     "requests>=2.34.2",
 ]
 

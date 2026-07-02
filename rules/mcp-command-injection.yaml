@@ -1,0 +1,29 @@
+rules:
+  - id: mcp-tool-command-injection
+    languages: [python]
+    severity: ERROR
+    mode: taint
+    message: "MCP tool parameter flows into shell execution sink"
+    metadata:
+      cwe: "CWE-78"
+      confidence: HIGH
+    pattern-sources:
+      - patterns:
+          - pattern: $ARG
+          - pattern-inside: |
+              @$MCP.tool(...)
+              def $FUNC(..., $ARG, ...):
+                  ...
+    pattern-sinks:
+      - patterns:
+          - pattern: subprocess.run($SINK, ...)
+      - patterns:
+          - pattern: subprocess.call($SINK, ...)
+      - patterns:
+          - pattern: subprocess.Popen($SINK, ...)
+      - patterns:
+          - pattern: subprocess.check_output($SINK, ...)
+      - patterns:
+          - pattern: os.system($SINK)
+      - patterns:
+          - pattern: os.popen($SINK)

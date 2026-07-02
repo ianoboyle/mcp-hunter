@@ -1,8 +1,11 @@
 import os
-import json
 import requests
+import logging
 from github import Github, Auth, GithubException
 from typing import Any, Dict, Generator, Optional
+
+from data_adapter import write_registry_item_if_not_exist, write_repository_if_not_exist
+from models import RegistryItem
 
 GITHUB_PAT = os.getenv("GITHUB_PAT")
 
@@ -45,6 +48,7 @@ class APIClient:
         current_page = 0
         cursor = None
         while True:
+            logging.debug(f"Fetching page {endpoint} page {current_page}")
             if max_pages and current_page >= max_pages:
                 break
 
@@ -63,42 +67,17 @@ class APIClient:
 GithubAPIClient = Github(auth=GITHUB_AUTH)
 
 
-def append_object_to_file(path: str, obj: Dict) -> None:
-    with open(path, "a") as f:
-        f.write(json.dumps(obj) + "\n")
-
-
-def is_open_source(server: Dict) -> bool:
+def _is_open_source(server: Dict) -> bool:
     return server.get("repository", {"source": ""}).get("source") == "github"
 
 
-def get_model_context_protocol_registry() -> None:
+def get_model_context_protocol_registry(max_pages: Optional[int] = None) -> None:
     client = APIClient(base_url="https://registry.modelcontextprotocol.io/v0.1/servers")
-
-    for item in client.list(max_pages=100):
+    for item in client.list(max_pages=max_pages):
         server = item.get("server", {})
-        if not is_open_source(server):
+        if not _is_open_source(server):
             continue
-
-        info = {
-            "schema": server.get("$schema"),
-            "name": server.get("name"),
-            "remotes": server.get("remotes"),
-            "repository": server.get("repository"),
-        }
-        append_object_to_file("./data/servers/servers.jsonl", info)
-
-
-def dedupe_repos() -> None:
-    big_set = set()
-    with open("./data/servers/servers.jsonl") as f:
-        for line in f.readlines():
-            obj = json.loads(line)
-            url = obj.get("repository", {"url": ""}).get("url")
-            if url in big_set:
-                continue
-            big_set.add(url)
-            append_object_to_file("./data/repos/repos.jsonl", obj)
+        write_registry_item_if_not_exist(server)
 
 
 def _parse_github_url(repo_url: str) -> str:
@@ -109,11 +88,12 @@ def get_github_repo_data(repo_url: str) -> Dict:
     owner_repo = _parse_github_url(repo_url=repo_url)
     try:
         repo = GithubAPIClient.get_repo(owner_repo)
+        logging.debug(f"Fetched github repo {repo_url}")
         return {
-            "repo": owner_repo,
+            "owner_repo": owner_repo,
             "repo_url": repo_url,
             "stars": repo.stargazers_count,
-            "last_push": repo.pushed_at.isoformat(),
+            "last_pushed": repo.pushed_at.isoformat(),
             "language": repo.language,
             "archived": repo.archived,
             "forks": repo.forks_count,
@@ -121,16 +101,20 @@ def get_github_repo_data(repo_url: str) -> Dict:
         }
     except GithubException as e:
         # 404 = deleted/private since registry scrape
-        return {"repo": owner_repo, "error": e.status}
+        logging.warning(f"FAILED: Fetched github repo {owner_repo}, status: {e.status}")
+        return {"owner_repo": owner_repo, "repo_url": repo_url, "error": e.status}
 
 
-def enrich_repos() -> None:
-    with open("./data/repos/repos.jsonl") as f:
-        for line in f.readlines():
-            obj = json.loads(line)
-            url = obj.get("repository", {"url": ""}).get("url")
-            enriched_data = get_github_repo_data(repo_url=url)
-            append_object_to_file("./data/repos/enriched_repos.jsonl", enriched_data)
+def fetch_github_repos_for_registry_items():
+    registry_items = RegistryItem.select()
+    for ri in registry_items:
+        logging.debug(f"Fetching github repo for: {ri.name}")
+        res = get_github_repo_data(ri.repository)
+        write_repository_if_not_exist(
+            registry_item=ri,
+            data=res,
+        )
 
 
-enrich_repos()
+get_model_context_protocol_registry(max_pages=20)
+fetch_github_repos_for_registry_items()
